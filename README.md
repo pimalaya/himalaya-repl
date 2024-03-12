@@ -1,8 +1,8 @@
 # 📫 Himalaya REPL [![GitHub release](https://img.shields.io/github/v/release/soywod/himalaya-repl?color=success)](https://github.com/soywod/himalaya-repl/releases/latest) [![Matrix](https://img.shields.io/matrix/pimalaya.himalaya:matrix.org?color=success&label=chat)](https://matrix.to/#/#pimalaya.himalaya:matrix.org)
 
-Welcome to [**Himalaya REPL**](https://pimalaya.org/himalaya/repl/latest/), the Read, Evaluate, Print, and Loop interface to manage emails based on [email-lib](https://crates.io/crates/email-lib).
+Welcome to [**Himalaya REPL**](https://pimalaya.org/himalaya/repl/latest/), the Read/Evaluate/Print/Loop interface to manage emails based on [email-lib](https://crates.io/crates/email-lib).
 
-*Work In Progress, stay tuned!*
+*🚧 Work In Progress, stay tuned!*
 
 ## Contributing
 
