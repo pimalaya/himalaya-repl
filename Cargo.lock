@@ -1809,6 +1809,7 @@ dependencies = [
  "dirs 4.0.0",
  "email-lib",
  "email_address",
+ "fuzzy-matcher",
  "mail-builder",
  "md5",
  "mml-lib",

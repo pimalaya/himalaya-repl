@@ -1,9 +1,13 @@
+use std::collections::HashMap;
+
 use color_eyre::Result;
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyModifiers},
     layout::{Constraint, Layout, Position},
     style::Stylize,
     text::Text,
+    widgets::{List, ListItem},
     DefaultTerminal, Frame,
 };
 
@@ -18,6 +22,7 @@ fn main() -> Result<()> {
 struct App {
     input: String,
     character_index: usize,
+    choices: Vec<&'static str>,
 }
 
 impl App {
@@ -25,6 +30,7 @@ impl App {
         Self {
             input: String::new(),
             character_index: 0,
+            choices: Vec::new(),
         }
     }
 
@@ -78,12 +84,45 @@ impl App {
         self.reset_cursor();
     }
 
+    fn complete(&mut self) {
+        self.choices.clear();
+
+        let matcher = SkimMatcherV2::default();
+        let mut matches = HashMap::new();
+
+        for cmd in ["account", "folder", "envelope", "flag", "message"] {
+            if let Some(score) = matcher.fuzzy_match(cmd, &self.input) {
+                matches.insert(score, cmd);
+            }
+        }
+
+        match matches.len() {
+            0 => {
+                return;
+            }
+            1 => {
+                self.input = matches.into_values().next().unwrap().to_string();
+                self.input.push(' ');
+                self.character_index = self.input.chars().count();
+            }
+            _ => {
+                let mut scores: Vec<_> = matches.keys().cloned().collect();
+                scores.sort();
+
+                for ref score in scores {
+                    self.choices.push(matches.remove(score).unwrap())
+                }
+            }
+        }
+    }
+
     fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 
             if let Event::Key(key) = event::read()? {
                 match key.code {
+                    KeyCode::Tab => self.complete(),
                     KeyCode::Enter => self.submit_message(),
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         return Ok(());
@@ -101,9 +140,25 @@ impl App {
     fn draw(&self, frame: &mut Frame) {
         let prompt = "himalaya > ";
 
-        let layout =
+        let layout = Layout::vertical([
+            Constraint::Fill(1),
+            Constraint::Length(self.choices.len() as u16),
+            Constraint::Length(1),
+        ]);
+
+        let [_output_area, completion_area, input_area] = layout.areas(frame.area());
+
+        let items = self
+            .choices
+            .iter()
+            .map(|choice| ListItem::new(Text::raw(*choice).cyan()));
+
+        frame.render_widget(List::new(items), completion_area);
+
+        let prompt_layout =
             Layout::horizontal([Constraint::Length(prompt.len() as u16), Constraint::Fill(1)]);
-        let [prompt_area, input_area] = layout.areas(frame.area());
+
+        let [prompt_area, input_area] = prompt_layout.areas(input_area);
 
         frame.render_widget(Text::raw(prompt).blue(), prompt_area);
         frame.render_widget(&self.input, input_area);
