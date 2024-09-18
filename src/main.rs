@@ -4,6 +4,7 @@ use std::{
 };
 
 use color_eyre::Result;
+use comfy_table::{presets::UTF8_FULL, Cell, ContentArrangement, Table};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use once_cell::sync::Lazy;
 use ratatui::{
@@ -11,7 +12,7 @@ use ratatui::{
     layout::{Constraint, Layout, Position},
     style::Stylize,
     text::{Line, Text},
-    widgets::{List, ListItem},
+    widgets::{List, ListItem, Paragraph},
     DefaultTerminal, Frame,
 };
 
@@ -49,6 +50,7 @@ struct App {
     character_index: usize,
     choices: Vec<String>,
     log: String,
+    table: bool,
 }
 
 impl App {
@@ -58,6 +60,7 @@ impl App {
             character_index: 0,
             choices: Vec::new(),
             log: String::new(),
+            table: false,
         }
     }
 
@@ -106,9 +109,10 @@ impl App {
         self.character_index = 0;
     }
 
-    fn submit_message(&mut self) {
+    fn submit(&mut self) {
         self.input.clear();
         self.reset_cursor();
+        self.table = true;
     }
 
     fn complete(&mut self) {
@@ -166,7 +170,7 @@ impl App {
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Tab => self.complete(),
-                    KeyCode::Enter => self.submit_message(),
+                    KeyCode::Enter => self.submit(),
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         return Ok(());
                     }
@@ -191,7 +195,32 @@ impl App {
 
         let [output_area, completion_area, input_area] = layout.areas(frame.area());
 
-        frame.render_widget(Line::raw(&self.log), output_area);
+        if self.table {
+            let mut table = Table::new();
+
+            table
+                .load_preset(UTF8_FULL)
+                .set_content_arrangement(ContentArrangement::DynamicFullWidth)
+                .set_width(80)
+                .set_header(vec![
+                    Cell::new("Header1"),
+                    Cell::new("Header2"),
+                    Cell::new("Header3"),
+                ])
+                .add_row(vec![
+                    Cell::new("This is a bold text"),
+                    Cell::new("This is a green text"),
+                    Cell::new("This one has black background"),
+                ])
+                .add_row(vec![
+                    Cell::new("Blinky boi"),
+                    Cell::new("Blinky boi"),
+                    Cell::new("COMBINE ALL THE THINGS"),
+                ])
+                .set_width(output_area.width);
+
+            frame.render_widget(Paragraph::new(table.to_string()), output_area);
+        }
 
         let items = self
             .choices
