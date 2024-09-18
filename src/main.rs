@@ -1,36 +1,63 @@
-use std::collections::HashMap;
+use std::{
+    collections::{HashSet, VecDeque},
+    hash::{Hash, Hasher},
+};
 
 use color_eyre::Result;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use once_cell::sync::Lazy;
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyModifiers},
     layout::{Constraint, Layout, Position},
     style::Stylize,
-    text::Text,
+    text::{Line, Text},
     widgets::{List, ListItem},
     DefaultTerminal, Frame,
 };
 
-fn main() -> Result<()> {
-    color_eyre::install()?;
-    let terminal = ratatui::init();
-    let app_result = App::new().run(terminal);
-    ratatui::restore();
-    app_result
-}
+static COMMANDS: Lazy<HashSet<Command>> = Lazy::new(|| {
+    HashSet::from_iter([
+        Command::new("account").with_children([Command::new("list"), Command::new("doctor")]),
+        Command::new("folder").with_children([
+            Command::new("add"),
+            Command::new("list"),
+            Command::new("expunge"),
+            Command::new("purge"),
+            Command::new("delete"),
+        ]),
+        Command::new("envelope").with_children([Command::new("list"), Command::new("thread")]),
+        Command::new("flag").with_children([
+            Command::new("add"),
+            Command::new("set"),
+            Command::new("remove"),
+        ]),
+        Command::new("message").with_children([
+            Command::new("read"),
+            Command::new("thread"),
+            Command::new("write"),
+            Command::new("reply"),
+            Command::new("forward"),
+            Command::new("copy"),
+            Command::new("move"),
+            Command::new("delete"),
+        ]),
+    ])
+});
 
 struct App {
     input: String,
     character_index: usize,
-    choices: Vec<&'static str>,
+    choices: Vec<String>,
+    log: String,
 }
 
 impl App {
-    const fn new() -> Self {
+    fn new() -> Self {
         Self {
             input: String::new(),
             character_index: 0,
             choices: Vec::new(),
+            log: String::new(),
         }
     }
 
@@ -87,12 +114,28 @@ impl App {
     fn complete(&mut self) {
         self.choices.clear();
 
-        let matcher = SkimMatcherV2::default();
-        let mut matches = HashMap::new();
+        let mut cmds = COMMANDS.clone();
+        let mut names = VecDeque::new();
 
-        for cmd in ["account", "folder", "envelope", "flag", "message"] {
-            if let Some(score) = matcher.fuzzy_match(cmd, &self.input) {
-                matches.insert(score, cmd);
+        for name in self.input.split_whitespace() {
+            let cmd = Command::new(name);
+            names.push_back(name);
+
+            if let Some(cmd) = cmds.get(&cmd) {
+                cmds = cmd.children.clone();
+            }
+        }
+
+        let matcher = SkimMatcherV2::default();
+        let mut matches = HashSet::new();
+
+        let input = names.pop_back().unwrap_or(&self.input);
+
+        for (i, cmd) in cmds.into_iter().enumerate() {
+            if input.is_empty() || self.input.ends_with(' ') {
+                matches.insert((i as i64, cmd));
+            } else if let Some(score) = matcher.fuzzy_match(&cmd.name, input) {
+                matches.insert((score, cmd));
             }
         }
 
@@ -101,16 +144,16 @@ impl App {
                 return;
             }
             1 => {
-                self.input = matches.into_values().next().unwrap().to_string();
-                self.input.push(' ');
+                names.push_back(&matches.iter().next().unwrap().1.name);
+                self.input = names.iter().map(|name| name.to_string() + " ").collect();
                 self.character_index = self.input.chars().count();
             }
             _ => {
-                let mut scores: Vec<_> = matches.keys().cloned().collect();
-                scores.sort();
+                let mut scores: Vec<_> = matches.iter().cloned().collect();
+                scores.sort_by(|(a, _), (b, _)| a.cmp(b));
 
-                for ref score in scores {
-                    self.choices.push(matches.remove(score).unwrap())
+                for (_, cmd) in scores {
+                    self.choices.push(cmd.name)
                 }
             }
         }
@@ -138,7 +181,7 @@ impl App {
     }
 
     fn draw(&self, frame: &mut Frame) {
-        let prompt = "himalaya > ";
+        let prompt = "himalaya $ ";
 
         let layout = Layout::vertical([
             Constraint::Fill(1),
@@ -146,12 +189,14 @@ impl App {
             Constraint::Length(1),
         ]);
 
-        let [_output_area, completion_area, input_area] = layout.areas(frame.area());
+        let [output_area, completion_area, input_area] = layout.areas(frame.area());
+
+        frame.render_widget(Line::raw(&self.log), output_area);
 
         let items = self
             .choices
             .iter()
-            .map(|choice| ListItem::new(Text::raw(*choice).cyan()));
+            .map(|choice| ListItem::new(Text::raw(choice).cyan()));
 
         frame.render_widget(List::new(items), completion_area);
 
@@ -168,4 +213,44 @@ impl App {
             input_area.y,
         ))
     }
+}
+
+#[derive(Clone, Debug, Eq)]
+struct Command {
+    name: String,
+    children: HashSet<Command>,
+}
+
+impl PartialEq for Command {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Hash for Command {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
+}
+
+impl Command {
+    pub fn new(name: impl ToString) -> Self {
+        Self {
+            name: name.to_string(),
+            children: HashSet::new(),
+        }
+    }
+
+    fn with_children(mut self, children: impl IntoIterator<Item = Command>) -> Self {
+        self.children = children.into_iter().collect();
+        self
+    }
+}
+
+fn main() -> Result<()> {
+    color_eyre::install()?;
+    let terminal = ratatui::init();
+    let app_result = App::new().run(terminal);
+    ratatui::restore();
+    app_result
 }
