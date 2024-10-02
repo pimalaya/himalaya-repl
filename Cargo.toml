@@ -50,13 +50,13 @@ pgp-native = ["email-lib/pgp-native", "mml-lib/pgp-native", "pgp"]
 [dependencies]
 ariadne = "0.2"
 async-trait = "0.1"
+clap = { version = "4.4", features = ["derive", "env", "wrap_help"] }
 color-eyre = "0.6.3"
-comfy-table = { version = "7.1", default-features = false }
+comfy-table = { version = "7.1" }
 crossterm = { version = "0.27", features = ["serde"] }
 dirs = "4"
 email-lib = { version = "=0.25.0", default-features = false, features = ["derive", "thread", "tracing"] }
 email_address = { version = "0.2", optional = true }
-fuzzy-matcher = "0.3"
 mail-builder = "0.3"
 md5 = "0.7"
 mml-lib = { version = "=1.0.14", default-features = false, features = ["derive"]  }
@@ -65,7 +65,7 @@ once_cell = "1.16"
 petgraph = "0.6"
 pimalaya-tui = { version = "=0.1.0", default-features = false, features = ["email", "path", "cli", "config", "tracing"] }
 process-lib = { version = "=0.4.2", features = ["derive"] }
-ratatui = "=0.28.1"
+reedline = "0.35.0"
 secret-lib = { version = "=0.4.6", default-features = false, features = ["command", "derive"], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
