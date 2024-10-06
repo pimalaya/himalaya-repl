@@ -2,6 +2,7 @@ pub mod account;
 pub mod backend;
 pub mod cli;
 pub mod config;
+pub mod editor;
 pub mod envelope;
 pub mod id_mapper;
 
@@ -10,10 +11,10 @@ use std::{
     sync::Arc,
 };
 
-use backend::BackendKind;
 use clap::Parser;
 use cli::Cli;
-use color_eyre::Result;
+use color_eyre::{eyre::eyre, Result};
+use crossterm::style::Color;
 #[cfg(feature = "imap")]
 use email::imap::ImapContextBuilder;
 #[cfg(feature = "maildir")]
@@ -24,15 +25,29 @@ use email::notmuch::NotmuchContextBuilder;
 use email::sendmail::SendmailContextBuilder;
 #[cfg(feature = "smtp")]
 use email::smtp::SmtpContextBuilder;
-use email::{backend::BackendBuilder, folder::list::ListFolders};
-
-use pimalaya_tui::cli::tracing;
+use email::{
+    backend::BackendBuilder,
+    envelope::{
+        list::{ListEnvelopes, ListEnvelopesOptions},
+        Id,
+    },
+    folder::list::ListFolders,
+    message::{
+        copy::CopyMessages, delete::DeleteMessages, get::GetMessages, r#move::MoveMessages, Message,
+    },
+};
+use pimalaya_tui::{cli::tracing, prompt};
 use reedline::{
     default_emacs_keybindings, ColumnarMenu, DefaultCompleter, DefaultPrompt, DefaultPromptSegment,
     Emacs, KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu, Signal,
 };
 
-use crate::{backend::ContextBuilder, config::Config};
+use crate::{
+    backend::{BackendKind, ContextBuilder},
+    config::Config,
+    envelope::{Envelopes, EnvelopesTable},
+    id_mapper::IdMapper,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -84,44 +99,176 @@ async fn main() -> Result<()> {
 
     println!();
 
-    let mut mode_kind = Mode::Unselected;
     let mut mode = UnselectedMode::new();
 
-    let prompt = DefaultPrompt::new(
-        DefaultPromptSegment::Basic(String::from("himalaya-repl")),
-        DefaultPromptSegment::Empty,
-    );
-
-    let mut folder = Option::<&str>::None;
+    let mut folder = Option::<String>::None;
 
     loop {
+        let prompt = match folder.as_ref() {
+            Some(folder) => DefaultPrompt::new(
+                DefaultPromptSegment::Basic(String::from("himalaya-repl")),
+                DefaultPromptSegment::Basic(format!("[{folder}]")),
+            ),
+            None => DefaultPrompt::new(
+                DefaultPromptSegment::Basic(String::from("himalaya-repl")),
+                DefaultPromptSegment::Empty,
+            ),
+        };
+
         match mode.read_line(&prompt)? {
-            Signal::Success(cmd) => match cmd.as_str() {
-                "list" => {
-                    let folders = backend.list_folders().await?;
-                    println!("folders: {folders:?}");
-                }
+            Signal::Success(cmd) => match cmd.trim() {
                 "select" => {
-                    // TODO: select folder
-                    let folders = backend.list_folders().await?;
-                    println!("folders: {folders:?}");
+                    let folders = backend.list_folders().await?.into_iter().map(|f| f.name);
+                    let f = prompt::item("Select a folder:", folders, None)?;
+                    folder = Some(f);
                 }
-                // "envelope list" => {
-                //     let id_mapper = IdMapper::Dummy;
-                //     let envelopes = backend
-                //         .list_envelopes(
-                //             "INBOX",
-                //             ListEnvelopesOptions {
-                //                 page_size: 10,
-                //                 ..Default::default()
-                //             },
-                //         )
-                //         .await?;
-                //     let envelopes =
-                //         Envelopes::try_from_lib(account_config.clone(), &id_mapper, envelopes)?;
-                //     let table = EnvelopesTable::from(envelopes);
-                //     println!("{table}");
-                // }
+                "unselect" => {
+                    folder = None;
+                }
+                "list" => {
+                    let Some(folder) = folder.as_deref() else {
+                        eprintln!("Please select a folder first");
+                        continue;
+                    };
+
+                    let id_mapper = IdMapper::Dummy;
+                    let envelopes = backend
+                        .list_envelopes(
+                            folder,
+                            ListEnvelopesOptions {
+                                page_size: 10,
+                                ..Default::default()
+                            },
+                        )
+                        .await?;
+                    let envelopes =
+                        Envelopes::try_from_lib(account_config.clone(), &id_mapper, envelopes)?;
+                    let table = EnvelopesTable::from(envelopes);
+                    println!("{table}");
+                }
+                "read" => {
+                    let Some(folder) = folder.as_deref() else {
+                        eprintln!("Please select a folder first");
+                        continue;
+                    };
+
+                    let id = prompt::usize("Select an envelope identifier:", None)?;
+
+                    let emails = backend.get_messages(folder, &Id::single(id)).await?;
+
+                    let mut glue = "";
+                    let mut bodies = String::default();
+
+                    for email in emails.to_vec() {
+                        bodies.push_str(glue);
+
+                        let tpl = email.to_read_tpl(&account_config, |tpl| tpl).await?;
+                        bodies.push_str(&tpl);
+
+                        glue = "\n\n";
+                    }
+
+                    println!("{bodies}");
+                }
+                "write" => {
+                    let tpl = Message::new_tpl_builder(account_config.clone())
+                        .build()
+                        .await?;
+
+                    editor::edit_tpl_with_editor(account_config.clone(), &backend, tpl).await?;
+                }
+                "reply" => {
+                    let Some(folder) = folder.as_deref() else {
+                        eprintln!("Please select a folder first");
+                        continue;
+                    };
+
+                    let id = prompt::usize("Select an envelope identifier:", None)?;
+                    let reply_all = prompt::bool("Reply to all recipients?", false)?;
+
+                    let tpl = backend
+                        .get_messages(folder, &Id::single(id))
+                        .await?
+                        .first()
+                        .ok_or(eyre!("cannot find message {id}"))?
+                        .to_reply_tpl_builder(account_config.clone())
+                        .with_reply_all(reply_all)
+                        .build()
+                        .await?;
+
+                    editor::edit_tpl_with_editor(account_config.clone(), &backend, tpl).await?;
+                }
+                "forward" => {
+                    let Some(folder) = folder.as_deref() else {
+                        eprintln!("Please select a folder first");
+                        continue;
+                    };
+
+                    let id = prompt::usize("Select an envelope identifier:", None)?;
+
+                    let tpl = backend
+                        .get_messages(folder, &Id::single(id))
+                        .await?
+                        .first()
+                        .ok_or(eyre!("cannot find message"))?
+                        .to_forward_tpl_builder(account_config.clone())
+                        .build()
+                        .await?;
+
+                    editor::edit_tpl_with_editor(account_config.clone(), &backend, tpl).await?;
+                }
+                "copy" => {
+                    let Some(source) = folder.as_deref() else {
+                        eprintln!("Please select a folder first");
+                        continue;
+                    };
+
+                    let folders = backend.list_folders().await?.into_iter().filter_map(|f| {
+                        if f.name == source {
+                            None
+                        } else {
+                            Some(f.name)
+                        }
+                    });
+
+                    let id = prompt::usize("Select an envelope identifier:", None)?;
+                    let target = prompt::item("Select a target folder:", folders, None)?;
+
+                    backend
+                        .copy_messages(source, &target, &Id::single(id))
+                        .await?;
+                }
+                "move" => {
+                    let Some(source) = folder.as_deref() else {
+                        eprintln!("Please select a folder first");
+                        continue;
+                    };
+
+                    let folders = backend.list_folders().await?.into_iter().filter_map(|f| {
+                        if f.name == source {
+                            None
+                        } else {
+                            Some(f.name)
+                        }
+                    });
+
+                    let id = prompt::usize("Select an envelope identifier:", None)?;
+                    let target = prompt::item("Select a target folder:", folders, None)?;
+
+                    backend
+                        .move_messages(source, &target, &Id::single(id))
+                        .await?;
+                }
+                "delete" => {
+                    let Some(folder) = folder.as_deref() else {
+                        eprintln!("Please select a folder first");
+                        continue;
+                    };
+
+                    let id = prompt::usize("Select an envelope identifier:", None)?;
+
+                    backend.delete_messages(folder, &Id::single(id)).await?;
+                }
                 cmd => {
                     eprintln!("{cmd}: command not found");
                 }
@@ -134,11 +281,6 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-enum Mode {
-    Unselected,
-    Selected,
 }
 
 struct UnselectedMode(Reedline);
@@ -179,5 +321,29 @@ impl Deref for UnselectedMode {
 impl DerefMut for UnselectedMode {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+pub(crate) fn map_color(color: Color) -> comfy_table::Color {
+    match color {
+        Color::Reset => comfy_table::Color::Reset,
+        Color::Black => comfy_table::Color::Black,
+        Color::DarkGrey => comfy_table::Color::DarkGrey,
+        Color::Red => comfy_table::Color::Red,
+        Color::DarkRed => comfy_table::Color::DarkRed,
+        Color::Green => comfy_table::Color::Green,
+        Color::DarkGreen => comfy_table::Color::DarkGreen,
+        Color::Yellow => comfy_table::Color::Yellow,
+        Color::DarkYellow => comfy_table::Color::DarkYellow,
+        Color::Blue => comfy_table::Color::Blue,
+        Color::DarkBlue => comfy_table::Color::DarkBlue,
+        Color::Magenta => comfy_table::Color::Magenta,
+        Color::DarkMagenta => comfy_table::Color::DarkMagenta,
+        Color::Cyan => comfy_table::Color::Cyan,
+        Color::DarkCyan => comfy_table::Color::DarkCyan,
+        Color::White => comfy_table::Color::White,
+        Color::Grey => comfy_table::Color::Grey,
+        Color::Rgb { r, g, b } => comfy_table::Color::Rgb { r, g, b },
+        Color::AnsiValue(n) => comfy_table::Color::AnsiValue(n),
     }
 }

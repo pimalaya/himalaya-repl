@@ -14,7 +14,12 @@ use email::{
         context::BackendContextBuilder, feature::BackendFeature, macros::BackendContext,
         mapper::SomeBackendContextBuilderMapper,
     },
+    envelope::list::ListEnvelopes,
     folder::list::ListFolders,
+    message::{
+        add::AddMessage, copy::CopyMessages, delete::DeleteMessages, get::GetMessages,
+        r#move::MoveMessages, send::SendMessage,
+    },
     AnyResult,
 };
 use serde::{Deserialize, Serialize};
@@ -131,6 +136,88 @@ impl BackendContextBuilder for ContextBuilder {
         }
     }
 
+    fn list_envelopes(&self) -> Option<BackendFeature<Self::Context, dyn ListEnvelopes>> {
+        match self.backend {
+            #[cfg(feature = "imap")]
+            BackendKind::Imap => self.list_envelopes_with_some(&self.imap),
+            #[cfg(feature = "maildir")]
+            BackendKind::Maildir => self.list_envelopes_with_some(&self.maildir),
+            #[cfg(feature = "notmuch")]
+            BackendKind::Notmuch => self.list_envelopes_with_some(&self.notmuch),
+            _ => None,
+        }
+    }
+
+    fn get_messages(&self) -> Option<BackendFeature<Self::Context, dyn GetMessages>> {
+        match self.backend {
+            #[cfg(feature = "imap")]
+            BackendKind::Imap => self.get_messages_with_some(&self.imap),
+            #[cfg(feature = "maildir")]
+            BackendKind::Maildir => self.get_messages_with_some(&self.maildir),
+            #[cfg(feature = "notmuch")]
+            BackendKind::Notmuch => self.get_messages_with_some(&self.notmuch),
+            _ => None,
+        }
+    }
+
+    fn add_message(&self) -> Option<BackendFeature<Self::Context, dyn AddMessage>> {
+        match self.backend {
+            #[cfg(feature = "imap")]
+            BackendKind::Imap => self.add_message_with_some(&self.imap),
+            #[cfg(feature = "maildir")]
+            BackendKind::Maildir => self.add_message_with_some(&self.maildir),
+            #[cfg(feature = "notmuch")]
+            BackendKind::Notmuch => self.add_message_with_some(&self.notmuch),
+            _ => None,
+        }
+    }
+
+    fn send_message(&self) -> Option<BackendFeature<Self::Context, dyn SendMessage>> {
+        match self.sending_backend {
+            #[cfg(feature = "smtp")]
+            BackendKind::Smtp => self.send_message_with_some(&self.smtp),
+            #[cfg(feature = "sendmail")]
+            BackendKind::Sendmail => self.send_message_with_some(&self.sendmail),
+            _ => None,
+        }
+    }
+
+    fn copy_messages(&self) -> Option<BackendFeature<Self::Context, dyn CopyMessages>> {
+        match self.backend {
+            #[cfg(feature = "imap")]
+            BackendKind::Imap => self.copy_messages_with_some(&self.imap),
+            #[cfg(feature = "maildir")]
+            BackendKind::Maildir => self.copy_messages_with_some(&self.maildir),
+            #[cfg(feature = "notmuch")]
+            BackendKind::Notmuch => self.copy_messages_with_some(&self.notmuch),
+            _ => None,
+        }
+    }
+
+    fn move_messages(&self) -> Option<BackendFeature<Self::Context, dyn MoveMessages>> {
+        match self.backend {
+            #[cfg(feature = "imap")]
+            BackendKind::Imap => self.move_messages_with_some(&self.imap),
+            #[cfg(feature = "maildir")]
+            BackendKind::Maildir => self.move_messages_with_some(&self.maildir),
+            #[cfg(feature = "notmuch")]
+            BackendKind::Notmuch => self.move_messages_with_some(&self.notmuch),
+            _ => None,
+        }
+    }
+
+    fn delete_messages(&self) -> Option<BackendFeature<Self::Context, dyn DeleteMessages>> {
+        match self.backend {
+            #[cfg(feature = "imap")]
+            BackendKind::Imap => self.delete_messages_with_some(&self.imap),
+            #[cfg(feature = "maildir")]
+            BackendKind::Maildir => self.delete_messages_with_some(&self.maildir),
+            #[cfg(feature = "notmuch")]
+            BackendKind::Notmuch => self.delete_messages_with_some(&self.notmuch),
+            _ => None,
+        }
+    }
+
     async fn build(self) -> AnyResult<Self::Context> {
         #[cfg(feature = "imap")]
         let imap = match self.imap {
@@ -176,3 +263,5 @@ impl BackendContextBuilder for ContextBuilder {
         })
     }
 }
+
+pub type Backend = email::backend::Backend<Context>;
