@@ -19,17 +19,17 @@ rustdoc-args = ["--cfg", "docsrs"]
 default = [
   "imap",
   "maildir",
-  # "notmuch",
+  #"notmuch",
   "smtp",
   "sendmail",
 
-  # "keyring",
-  # "oauth2",
+  #"keyring",
+  #"oauth2",
   "wizard",
 
-  # "pgp-commands",
-  # "pgp-gpg",
-  # "pgp-native",
+  #"pgp-commands",
+  #"pgp-gpg",
+  #"pgp-native",
 ]
 
 imap = ["email-lib/imap", "pimalaya-tui/imap"]
@@ -63,7 +63,7 @@ mml-lib = { version = "=1.0.14", default-features = false, features = ["derive"]
 oauth-lib = { version = "=0.1.1", optional = true }
 once_cell = "1.16"
 petgraph = "0.6"
-pimalaya-tui = { version = "=0.1.0", default-features = false, features = ["email", "path", "cli", "config", "tracing"] }
+pimalaya-tui = { version = "=0.1.0", default-features = false, features = ["email", "path", "cli", "config", "tracing", "himalaya"] }
 process-lib = { version = "=0.4.2", features = ["derive"] }
 reedline = "0.35.0"
 secret-lib = { version = "=0.4.6", default-features = false, features = ["command", "derive"], optional = true }
@@ -82,5 +82,6 @@ imap-next = { git = "https://github.com/duesee/imap-next" }
 imap-client = { git = "https://github.com/pimalaya/imap-client" }
 oauth-lib = { git = "https://github.com/pimalaya/core" }
 process-lib = { git = "https://github.com/pimalaya/core" }
+pgp-lib = { git = "https://github.com/pimalaya/core" }
 email-lib = { git = "https://github.com/pimalaya/core" }
 pimalaya-tui = { git = "https://github.com/pimalaya/tui" }

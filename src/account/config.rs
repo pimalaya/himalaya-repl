@@ -18,15 +18,11 @@ use email::notmuch::config::NotmuchConfig;
 use email::sendmail::config::SendmailConfig;
 #[cfg(feature = "smtp")]
 use email::smtp::config::SmtpConfig;
-use process::Command;
+use email::{account::config::AccountConfig, template::config::TemplateConfig};
+use pimalaya_tui::config::toml::himalaya::{
+    BackendKind, EnvelopeConfig, FolderConfig, MessageConfig,
+};
 use serde::{Deserialize, Serialize};
-
-use crate::backend::BackendKind;
-
-// use crate::{
-//     backend::BackendKind, envelope::config::EnvelopeConfig, flag::config::FlagConfig,
-//     folder::config::FolderConfig, message::config::MessageConfig,
-// };
 
 /// Represents all existing kind of account config.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
@@ -43,11 +39,11 @@ pub struct TomlAccountConfig {
     #[cfg(feature = "pgp")]
     pub pgp: Option<PgpConfig>,
 
-    // pub folder: Option<FolderConfig>,
-    // pub envelope: Option<EnvelopeConfig>,
-    // pub flag: Option<FlagConfig>,
+    pub folder: Option<FolderConfig>,
+    pub envelope: Option<EnvelopeConfig>,
     pub message: Option<MessageConfig>,
-    // pub template: Option<TemplateConfig>,
+    pub template: Option<TemplateConfig>,
+
     #[cfg(feature = "imap")]
     pub imap: Option<ImapConfig>,
     #[cfg(feature = "maildir")]
@@ -60,41 +56,82 @@ pub struct TomlAccountConfig {
     pub sendmail: Option<SendmailConfig>,
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
-pub struct MessageConfig {
-    pub send: Option<MessageSendConfig>,
+impl From<TomlAccountConfig> for AccountConfig {
+    fn from(config: TomlAccountConfig) -> Self {
+        Self {
+            name: String::new(),
+            email: config.email,
+            display_name: config.display_name,
+            signature: config.signature,
+            signature_delim: config.signature_delim,
+            downloads_dir: config.downloads_dir,
+
+            #[cfg(feature = "pgp")]
+            pgp: config.pgp,
+
+            folder: config.folder.map(Into::into),
+            envelope: config.envelope.map(Into::into),
+            flag: None,
+            message: config.message.map(Into::into),
+            template: config.template,
+        }
+    }
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
-pub struct MessageSendConfig {
-    pub backend: Option<BackendKind>,
-    pub save_copy: Option<bool>,
-    pub pre_hook: Option<Command>,
+impl TomlAccountConfig {
+    pub fn envelope_list_table_preset(&self) -> Option<String> {
+        self.envelope.as_ref().and_then(|c| c.list_table_preset())
+    }
+
+    pub fn envelope_list_table_unseen_char(&self) -> Option<char> {
+        self.envelope
+            .as_ref()
+            .and_then(|c| c.list_table_unseen_char())
+    }
+
+    pub fn envelope_list_table_replied_char(&self) -> Option<char> {
+        self.envelope
+            .as_ref()
+            .and_then(|c| c.list_table_replied_char())
+    }
+
+    pub fn envelope_list_table_flagged_char(&self) -> Option<char> {
+        self.envelope
+            .as_ref()
+            .and_then(|c| c.list_table_flagged_char())
+    }
+
+    pub fn envelope_list_table_attachment_char(&self) -> Option<char> {
+        self.envelope
+            .as_ref()
+            .and_then(|c| c.list_table_attachment_char())
+    }
+
+    pub fn envelope_list_table_id_color(&self) -> Option<Color> {
+        self.envelope.as_ref().and_then(|c| c.list_table_id_color())
+    }
+
+    pub fn envelope_list_table_flags_color(&self) -> Option<Color> {
+        self.envelope
+            .as_ref()
+            .and_then(|c| c.list_table_flags_color())
+    }
+
+    pub fn envelope_list_table_subject_color(&self) -> Option<Color> {
+        self.envelope
+            .as_ref()
+            .and_then(|c| c.list_table_subject_color())
+    }
+
+    pub fn envelope_list_table_sender_color(&self) -> Option<Color> {
+        self.envelope
+            .as_ref()
+            .and_then(|c| c.list_table_sender_color())
+    }
+
+    pub fn envelope_list_table_date_color(&self) -> Option<Color> {
+        self.envelope
+            .as_ref()
+            .and_then(|c| c.list_table_date_color())
+    }
 }
-
-#[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct ListAccountsTableConfig {
-    pub preset: Option<String>,
-    pub name_color: Option<Color>,
-    pub backends_color: Option<Color>,
-    pub default_color: Option<Color>,
-}
-
-// impl ListAccountsTableConfig {
-//     pub fn preset(&self) -> &str {
-//         self.preset.as_deref().unwrap_or(presets::ASCII_MARKDOWN)
-//     }
-
-//     pub fn name_color(&self) -> comfy_table::Color {
-//         map_color(self.name_color.unwrap_or(Color::Green))
-//     }
-
-//     pub fn backends_color(&self) -> comfy_table::Color {
-//         map_color(self.backends_color.unwrap_or(Color::Blue))
-//     }
-
-//     pub fn default_color(&self) -> comfy_table::Color {
-//         map_color(self.default_color.unwrap_or(Color::Reset))
-//     }
-// }

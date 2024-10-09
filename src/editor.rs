@@ -96,7 +96,7 @@ pub fn post_edit() -> Result<PostEditChoice> {
     Ok(user_choice.clone())
 }
 pub async fn edit_tpl_with_editor(
-    config: Arc<AccountConfig>,
+    #[cfg_attr(not(feature = "pgp"), allow(unused_variables))] config: Arc<AccountConfig>,
     backend: &Backend,
     mut tpl: Template,
 ) -> Result<()> {

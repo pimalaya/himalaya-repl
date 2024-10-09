@@ -22,7 +22,7 @@ use email::{
     },
     AnyResult,
 };
-use serde::{Deserialize, Serialize};
+use pimalaya_tui::config::toml::himalaya::BackendKind;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BackendConfig {
@@ -36,22 +36,6 @@ pub enum BackendConfig {
     Smtp(SmtpConfig),
     #[cfg(feature = "sendmail")]
     Sendmail(SendmailConfig),
-}
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum BackendKind {
-    None,
-    #[cfg(feature = "imap")]
-    Imap,
-    #[cfg(feature = "maildir")]
-    Maildir,
-    #[cfg(feature = "notmuch")]
-    Notmuch,
-    #[cfg(feature = "smtp")]
-    Smtp,
-    #[cfg(feature = "sendmail")]
-    Sendmail,
 }
 
 #[derive(BackendContext)]

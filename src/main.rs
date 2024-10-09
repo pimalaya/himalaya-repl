@@ -36,15 +36,20 @@ use email::{
         copy::CopyMessages, delete::DeleteMessages, get::GetMessages, r#move::MoveMessages, Message,
     },
 };
-use pimalaya_tui::{cli::tracing, prompt};
+use pimalaya_tui::{
+    cli::tracing,
+    config::toml::{himalaya::BackendKind, TomlConfig as _},
+    prompt,
+};
 use reedline::{
-    default_emacs_keybindings, ColumnarMenu, DefaultCompleter, DefaultPrompt, DefaultPromptSegment,
-    Emacs, KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu, Signal,
+    default_emacs_keybindings, default_vi_insert_keybindings, default_vi_normal_keybindings,
+    ColumnarMenu, DefaultCompleter, DefaultPrompt, DefaultPromptSegment, Emacs, KeyCode,
+    KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu, Signal, Vi,
 };
 
 use crate::{
-    backend::{BackendKind, ContextBuilder},
-    config::Config,
+    backend::ContextBuilder,
+    config::{KeybindsStyle, TomlConfig},
     envelope::{Envelopes, EnvelopesTable},
     id_mapper::IdMapper,
 };
@@ -56,50 +61,57 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     println!("Welcome to Himalaya REPL!");
-    println!("Connecting…");
+    println!("Setting up backends…");
 
-    let config = Config::from_paths_or_default(&cli.config_paths).await?;
-    let (toml_account_config, account_config) = config.into_account_configs(None)?;
-    let account_config = Arc::new(account_config);
+    let toml_cfg = TomlConfig::from_paths_or_default(&cli.config_paths).await?;
+    let keybinds = toml_cfg.repl_keybinds().cloned().unwrap_or_default();
+    let (toml_account_cfg, account_cfg) = toml_cfg.into_account_configs(None)?;
 
-    let backend = BackendBuilder::new(
-        account_config.clone(),
-        ContextBuilder {
-            backend: toml_account_config.backend.unwrap_or(BackendKind::None),
-            sending_backend: toml_account_config
-                .message
-                .and_then(|c| c.send)
-                .and_then(|c| c.backend)
-                .unwrap_or(BackendKind::None),
+    let account_cfg = Arc::new(account_cfg);
 
-            #[cfg(feature = "imap")]
-            imap: toml_account_config
-                .imap
-                .map(|imap| ImapContextBuilder::new(account_config.clone(), Arc::new(imap))),
-            #[cfg(feature = "maildir")]
-            maildir: toml_account_config.maildir.map(|maildir| {
-                MaildirContextBuilder::new(account_config.clone(), Arc::new(maildir))
-            }),
-            #[cfg(feature = "notmuch")]
-            notmuch: toml_account_config.notmuch.map(|notmuch| {
-                NotmuchContextBuilder::new(account_config.clone(), Arc::new(notmuch))
-            }),
-            #[cfg(feature = "smtp")]
-            smtp: toml_account_config
-                .smtp
-                .map(|smtp| SmtpContextBuilder::new(account_config.clone(), Arc::new(smtp))),
-            #[cfg(feature = "sendmail")]
-            sendmail: toml_account_config.sendmail.map(|sendmail| {
-                SendmailContextBuilder::new(account_config.clone(), Arc::new(sendmail))
-            }),
-        },
-    )
-    .build()
-    .await?;
+    let backend =
+        BackendBuilder::new(
+            account_cfg.clone(),
+            ContextBuilder {
+                backend: toml_account_cfg
+                    .backend
+                    .clone()
+                    .unwrap_or(BackendKind::None),
+                sending_backend: toml_account_cfg
+                    .message
+                    .as_ref()
+                    .and_then(|c| c.send.as_ref())
+                    .and_then(|c| c.backend.clone())
+                    .unwrap_or(BackendKind::None),
+
+                #[cfg(feature = "imap")]
+                imap: toml_account_cfg.imap.as_ref().map(|imap| {
+                    ImapContextBuilder::new(account_cfg.clone(), Arc::new(imap.clone()))
+                }),
+                #[cfg(feature = "maildir")]
+                maildir: toml_account_cfg.maildir.as_ref().map(|maildir| {
+                    MaildirContextBuilder::new(account_cfg.clone(), Arc::new(maildir.clone()))
+                }),
+                #[cfg(feature = "notmuch")]
+                notmuch: toml_account_cfg.notmuch.as_ref().map(|notmuch| {
+                    NotmuchContextBuilder::new(account_cfg.clone(), Arc::new(notmuch.clone()))
+                }),
+                #[cfg(feature = "smtp")]
+                smtp: toml_account_cfg.smtp.as_ref().map(|smtp| {
+                    SmtpContextBuilder::new(account_cfg.clone(), Arc::new(smtp.clone()))
+                }),
+                #[cfg(feature = "sendmail")]
+                sendmail: toml_account_cfg.sendmail.as_ref().map(|sendmail| {
+                    SendmailContextBuilder::new(account_cfg.clone(), Arc::new(sendmail.clone()))
+                }),
+            },
+        )
+        .build()
+        .await?;
 
     println!();
 
-    let mut mode = UnselectedMode::new();
+    let mut mode = UnselectedMode::new(keybinds);
 
     let mut folder = Option::<String>::None;
 
@@ -142,8 +154,23 @@ async fn main() -> Result<()> {
                         )
                         .await?;
                     let envelopes =
-                        Envelopes::try_from_lib(account_config.clone(), &id_mapper, envelopes)?;
-                    let table = EnvelopesTable::from(envelopes);
+                        Envelopes::try_from_lib(account_cfg.clone(), &id_mapper, envelopes)?;
+                    let table = EnvelopesTable::from(envelopes)
+                        .with_some_preset(toml_account_cfg.envelope_list_table_preset())
+                        .with_some_unseen_char(toml_account_cfg.envelope_list_table_unseen_char())
+                        .with_some_replied_char(toml_account_cfg.envelope_list_table_replied_char())
+                        .with_some_flagged_char(toml_account_cfg.envelope_list_table_flagged_char())
+                        .with_some_attachment_char(
+                            toml_account_cfg.envelope_list_table_attachment_char(),
+                        )
+                        .with_some_id_color(toml_account_cfg.envelope_list_table_id_color())
+                        .with_some_flags_color(toml_account_cfg.envelope_list_table_flags_color())
+                        .with_some_subject_color(
+                            toml_account_cfg.envelope_list_table_subject_color(),
+                        )
+                        .with_some_sender_color(toml_account_cfg.envelope_list_table_sender_color())
+                        .with_some_date_color(toml_account_cfg.envelope_list_table_date_color());
+
                     println!("{table}");
                 }
                 "read" => {
@@ -162,7 +189,7 @@ async fn main() -> Result<()> {
                     for email in emails.to_vec() {
                         bodies.push_str(glue);
 
-                        let tpl = email.to_read_tpl(&account_config, |tpl| tpl).await?;
+                        let tpl = email.to_read_tpl(&account_cfg, |tpl| tpl).await?;
                         bodies.push_str(&tpl);
 
                         glue = "\n\n";
@@ -171,11 +198,11 @@ async fn main() -> Result<()> {
                     println!("{bodies}");
                 }
                 "write" => {
-                    let tpl = Message::new_tpl_builder(account_config.clone())
+                    let tpl = Message::new_tpl_builder(account_cfg.clone())
                         .build()
                         .await?;
 
-                    editor::edit_tpl_with_editor(account_config.clone(), &backend, tpl).await?;
+                    editor::edit_tpl_with_editor(account_cfg.clone(), &backend, tpl).await?;
                 }
                 "reply" => {
                     let Some(folder) = folder.as_deref() else {
@@ -191,12 +218,12 @@ async fn main() -> Result<()> {
                         .await?
                         .first()
                         .ok_or(eyre!("cannot find message {id}"))?
-                        .to_reply_tpl_builder(account_config.clone())
+                        .to_reply_tpl_builder(account_cfg.clone())
                         .with_reply_all(reply_all)
                         .build()
                         .await?;
 
-                    editor::edit_tpl_with_editor(account_config.clone(), &backend, tpl).await?;
+                    editor::edit_tpl_with_editor(account_cfg.clone(), &backend, tpl).await?;
                 }
                 "forward" => {
                     let Some(folder) = folder.as_deref() else {
@@ -211,11 +238,11 @@ async fn main() -> Result<()> {
                         .await?
                         .first()
                         .ok_or(eyre!("cannot find message"))?
-                        .to_forward_tpl_builder(account_config.clone())
+                        .to_forward_tpl_builder(account_cfg.clone())
                         .build()
                         .await?;
 
-                    editor::edit_tpl_with_editor(account_config.clone(), &backend, tpl).await?;
+                    editor::edit_tpl_with_editor(account_cfg.clone(), &backend, tpl).await?;
                 }
                 "copy" => {
                     let Some(source) = folder.as_deref() else {
@@ -286,25 +313,46 @@ async fn main() -> Result<()> {
 struct UnselectedMode(Reedline);
 
 impl UnselectedMode {
-    pub fn new() -> impl DerefMut<Target = Reedline> {
+    pub fn new(keybinds: KeybindsStyle) -> impl DerefMut<Target = Reedline> {
         let commands = vec!["create".into(), "list".into(), "select".into()];
         let completer = Box::new(DefaultCompleter::new_with_wordlen(commands.clone(), 2));
         let completion_menu = Box::new(ColumnarMenu::default().with_name("completion"));
 
-        let mut keybinds = default_emacs_keybindings();
-        keybinds.add_binding(
-            KeyModifiers::NONE,
-            KeyCode::Tab,
-            ReedlineEvent::UntilFound(vec![
-                ReedlineEvent::Menu("completion".to_string()),
-                ReedlineEvent::MenuNext,
-            ]),
-        );
-
         let reedline = Reedline::create()
             .with_completer(completer)
-            .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
-            .with_edit_mode(Box::new(Emacs::new(keybinds)));
+            .with_menu(ReedlineMenu::EngineCompleter(completion_menu));
+
+        let reedline = match keybinds {
+            KeybindsStyle::Emacs => {
+                let mut keybinds = default_emacs_keybindings();
+
+                keybinds.add_binding(
+                    KeyModifiers::NONE,
+                    KeyCode::Tab,
+                    ReedlineEvent::UntilFound(vec![
+                        ReedlineEvent::Menu("completion".to_string()),
+                        ReedlineEvent::MenuNext,
+                    ]),
+                );
+
+                reedline.with_edit_mode(Box::new(Emacs::new(keybinds)))
+            }
+            KeybindsStyle::Vi => {
+                let mut keybinds = default_vi_insert_keybindings();
+
+                keybinds.add_binding(
+                    KeyModifiers::NONE,
+                    KeyCode::Tab,
+                    ReedlineEvent::UntilFound(vec![
+                        ReedlineEvent::Menu("completion".to_string()),
+                        ReedlineEvent::MenuNext,
+                    ]),
+                );
+
+                reedline
+                    .with_edit_mode(Box::new(Vi::new(keybinds, default_vi_normal_keybindings())))
+            }
+        };
 
         Self(reedline)
     }
