@@ -4,12 +4,13 @@
   <p><strong>REPL</strong> to manage emails, based on <a href="https://crates.io/crates/email-lib"><code>email-lib</code></a></p>
   <p>
     <a href="https://github.com/pimalaya/himalaya-repl/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/pimalaya/himalaya-repl?color=success"/></a>
-	<a href="https://repology.org/project/himalaya-repl/versions"><img alt="Repology" src="https://img.shields.io/repology/repositories/himalaya-repl?color=success"></a>
+	<!-- <a href="https://repology.org/project/himalaya-repl/versions"><img alt="Repology" src="https://img.shields.io/repology/repositories/himalaya-repl?color=success"></a> -->
     <a href="https://matrix.to/#/#pimalaya:matrix.org"><img alt="Matrix" src="https://img.shields.io/matrix/pimalaya:matrix.org?color=success&label=chat"/></a>
   </p>
+  <p>
+    <em>🚧 Himalaya REPL is still experimental.<br>For a more stable alternative, see [Himalaya CLI](https://github.com/pimalaya/himalaya).</em>
+  </p>
 </div>
-
-*🚧 Himalaya REPL is still experimental. For a more stable alternative, have a look at [Himalaya CLI](https://github.com/pimalaya/himalaya).*
 
 ## Features
 
@@ -477,11 +478,11 @@ You can also manually edit your own configuration, from scratch:
 
 [![nlnet](https://nlnet.nl/logo/banner-160x60.png)](https://nlnet.nl/)
 
-Special thanks to the [NLnet foundation](https://nlnet.nl/) that helped the project to receive financial support from various programs of the [European Commission](https://www.ngi.eu/):
+Special thanks to the [NLnet foundation](https://nlnet.nl/) and the [European Commission](https://www.ngi.eu/) that helped the project to receive financial support from various programs:
 
-- [NGI Assure](https://nlnet.nl/project/Himalaya/) in 2022-2023
-- [NGI Zero Entrust](https://nlnet.nl/project/Pimalaya/) in 2023-2024
-- [NGI Zero Core](https://nlnet.nl/project/Pimalaya-PIM/) in 2024-2025
+- [NGI Assure](https://nlnet.nl/project/Himalaya/) in 2022
+- [NGI Zero Entrust](https://nlnet.nl/project/Pimalaya/) in 2023
+- [NGI Zero Core](https://nlnet.nl/project/Pimalaya-PIM/) in 2024 *(ongoing)*
 
 If you appreciate the project, feel free to donate using one of the following providers:
 

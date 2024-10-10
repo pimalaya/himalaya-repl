@@ -8,7 +8,7 @@ license = "MIT"
 categories = ["command-line-utilities", "email"]
 keywords = ["repl", "email", "imap", "smtp", "maildir"]
 homepage = "https://pimalaya.org/"
-documentation = "https://github.com/pimalaya/himalaya-repl/"
+documentation = "https://github.com/pimalaya/himalaya-repl/blob/master/config.sample.toml"
 repository = "https://github.com/pimalaya/himalaya-repl/"
 
 [package.metadata.docs.rs]
