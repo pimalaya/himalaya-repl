@@ -42,10 +42,10 @@ jobs:
       - name: Upload release artifact (tarball)
         uses: actions/upload-artifact@v4
         with:
-          name: "himalaya.${{ matrix.target }}.tgz"
-          path: result/himalaya.tgz
+          name: "himalaya-repl.${{ matrix.target }}.tgz"
+          path: result/himalaya-repl.tgz
       - name: Upload release artifact (zip)
         uses: actions/upload-artifact@v4
         with:
-          name: "himalaya.${{ matrix.target }}.zip"
-          path: result/himalaya.zip
+          name: "himalaya-repl.${{ matrix.target }}.zip"
+          path: result/himalaya-repl.zip
