@@ -8,7 +8,7 @@
     <a href="https://matrix.to/#/#pimalaya:matrix.org"><img alt="Matrix" src="https://img.shields.io/matrix/pimalaya:matrix.org?color=success&label=chat"/></a>
   </p>
   <p>
-    <em>🚧 Himalaya REPL is still experimental.<br>For a more stable alternative, see [Himalaya CLI](https://github.com/pimalaya/himalaya).</em>
+    <em>🚧 Himalaya REPL is still experimental 🚧<br>For a more stable alternative, see <a href="https://github.com/pimalaya/himalaya">Himalaya CLI</a></em>
   </p>
 </div>
 
@@ -455,11 +455,6 @@ You can also manually edit your own configuration, from scratch:
   - `RUST_BACKTRACE=1`: enables the error backtrace.
   - `RUST_BACKTRACE=full`: enables the full error backtrace, which include source lines where the error originated from.
 
-  Logs are written to the `stderr`, which means that you can redirect them easily to a file:
-
-  ```
-  RUST_LOG=debug himalaya 2>/tmp/himalaya.log
-  ```
 </details>
 
 <details>
