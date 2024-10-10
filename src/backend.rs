@@ -22,7 +22,7 @@ use email::{
     },
     AnyResult,
 };
-use pimalaya_tui::config::toml::himalaya::BackendKind;
+use pimalaya_tui::config::toml::himalaya::config::BackendKind;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BackendConfig {

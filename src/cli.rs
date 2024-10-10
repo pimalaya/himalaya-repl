@@ -19,6 +19,13 @@ pub struct Cli {
     #[arg(value_name = "PATH", value_parser = path_parser)]
     pub config_paths: Vec<PathBuf>,
 
+    /// Override the default account.
+    ///
+    /// An account name corresponds to an entry in the table at the
+    /// root level of your TOML configuration file.
+    #[arg(long, short, name = "account", value_name = "NAME")]
+    pub account: Option<String>,
+
     /// Enable logs with spantrace.
     ///
     /// This is the same as running the command with `RUST_LOG=debug`

@@ -38,7 +38,7 @@ use email::{
 };
 use pimalaya_tui::{
     cli::tracing,
-    config::toml::{himalaya::BackendKind, TomlConfig as _},
+    config::toml::{himalaya::config::BackendKind, TomlConfig as _},
     prompt,
 };
 use reedline::{
@@ -54,20 +54,25 @@ use crate::{
     id_mapper::IdMapper,
 };
 
+static COMMANDS: [&str; 11] = [
+    "help", "select", "unselect", "list", "read", "write", "reply", "forward", "copy", "move",
+    "delete",
+];
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing::install()?;
 
     let cli = Cli::parse();
 
-    println!("Welcome to Himalaya REPL!");
-    println!("Setting up backends…");
-
     let toml_cfg = TomlConfig::from_paths_or_default(&cli.config_paths).await?;
     let keybinds = toml_cfg.repl_keybinds().cloned().unwrap_or_default();
-    let (toml_account_cfg, account_cfg) = toml_cfg.into_account_configs(None)?;
+    let (toml_account_cfg, account_cfg) = toml_cfg.into_account_configs(cli.account.as_deref())?;
 
     let account_cfg = Arc::new(account_cfg);
+
+    println!("Welcome to Himalaya REPL!");
+    println!("Starting up backends…");
 
     let backend =
         BackendBuilder::new(
@@ -129,6 +134,9 @@ async fn main() -> Result<()> {
 
         match mode.read_line(&prompt)? {
             Signal::Success(cmd) => match cmd.trim() {
+                "help" | "h" => {
+                    println!("Available commands: {}", COMMANDS.join(", "));
+                }
                 "select" => {
                     let folders = backend.list_folders().await?.into_iter().map(|f| f.name);
                     let f = prompt::item("Select a folder:", folders, None)?;
@@ -314,13 +322,16 @@ struct UnselectedMode(Reedline);
 
 impl UnselectedMode {
     pub fn new(keybinds: KeybindsStyle) -> impl DerefMut<Target = Reedline> {
-        let commands = vec!["create".into(), "list".into(), "select".into()];
-        let completer = Box::new(DefaultCompleter::new_with_wordlen(commands.clone(), 2));
-        let completion_menu = Box::new(ColumnarMenu::default().with_name("completion"));
+        let completer = Box::new(DefaultCompleter::new_with_wordlen(
+            COMMANDS.iter().map(ToString::to_string).collect(),
+            0,
+        ));
+
+        let completion = Box::new(ColumnarMenu::default().with_name("completion"));
 
         let reedline = Reedline::create()
             .with_completer(completer)
-            .with_menu(ReedlineMenu::EngineCompleter(completion_menu));
+            .with_menu(ReedlineMenu::EngineCompleter(completion));
 
         let reedline = match keybinds {
             KeybindsStyle::Emacs => {

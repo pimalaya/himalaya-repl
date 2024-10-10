@@ -40,7 +40,7 @@ sendmail = ["email-lib/sendmail", "pimalaya-tui/sendmail"]
 
 keyring = ["email-lib/keyring", "pimalaya-tui/keyring", "secret-lib?/keyring-tokio"]
 oauth2 = ["dep:oauth-lib", "email-lib/oauth2", "pimalaya-tui/oauth2", "keyring"]
-wizard = ["dep:email_address", "dep:secret-lib", "email-lib/autoconfig"]
+wizard = ["dep:email_address", "dep:secret-lib", "pimalaya-tui/wizard", "email-lib/autoconfig"]
 
 pgp = []
 pgp-commands = ["email-lib/pgp-commands", "mml-lib/pgp-commands", "pgp"]

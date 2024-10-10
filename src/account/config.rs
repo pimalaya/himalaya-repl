@@ -19,7 +19,7 @@ use email::sendmail::config::SendmailConfig;
 #[cfg(feature = "smtp")]
 use email::smtp::config::SmtpConfig;
 use email::{account::config::AccountConfig, template::config::TemplateConfig};
-use pimalaya_tui::config::toml::himalaya::{
+use pimalaya_tui::config::toml::himalaya::config::{
     BackendKind, EnvelopeConfig, FolderConfig, MessageConfig,
 };
 use serde::{Deserialize, Serialize};

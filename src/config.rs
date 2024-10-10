@@ -1,8 +1,11 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use color_eyre::{eyre::eyre, Result};
+use async_trait::async_trait;
 use email::{account::config::AccountConfig, config::Config};
-use pimalaya_tui::config::toml::himalaya::AccountsConfig;
+use pimalaya_tui::{
+    config::toml::himalaya::config::{AccountsConfig, HimalayaTomlConfig},
+    Result,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::account::config::TomlAccountConfig;
@@ -69,29 +72,76 @@ impl From<TomlConfig> for Config {
     }
 }
 
+#[async_trait]
 impl pimalaya_tui::config::toml::TomlConfig for TomlConfig {
     type AccountConfig = TomlAccountConfig;
 
     fn project_name() -> &'static str {
-        "himalaya"
+        HimalayaTomlConfig::project_name()
     }
 
-    fn get_default_account_config(&self) -> Result<(String, Self::AccountConfig)> {
-        self.accounts
-            .iter()
-            .find_map(|(name, account)| {
-                account
-                    .default
-                    .filter(|default| *default)
-                    .map(|_| (name.to_owned(), account.clone()))
-            })
-            .ok_or_else(|| eyre!("cannot find default account"))
+    fn get_default_account_config(&self) -> Option<(String, Self::AccountConfig)> {
+        self.accounts.iter().find_map(|(name, account)| {
+            account
+                .default
+                .filter(|default| *default)
+                .map(|_| (name.to_owned(), account.clone()))
+        })
     }
 
-    fn get_account_config(&self, name: &str) -> Result<(String, Self::AccountConfig)> {
+    fn get_account_config(&self, name: &str) -> Option<(String, Self::AccountConfig)> {
         self.accounts
             .get(name)
             .map(|account| (name.to_owned(), account.clone()))
-            .ok_or_else(|| eyre!("cannot find account {name}"))
+    }
+
+    #[cfg(feature = "wizard")]
+    async fn from_wizard(path: &std::path::Path) -> Result<Self> {
+        let config = HimalayaTomlConfig::from_wizard(path).await?;
+        Ok(Self {
+            display_name: config.display_name,
+            signature: config.signature,
+            signature_delim: config.signature_delim,
+            downloads_dir: config.downloads_dir,
+            accounts: config
+                .accounts
+                .into_iter()
+                .map(|(name, config)| {
+                    (
+                        name,
+                        TomlAccountConfig {
+                            default: config.default,
+                            email: config.email,
+                            display_name: config.display_name,
+                            signature: config.signature,
+                            signature_delim: config.signature_delim,
+                            downloads_dir: config.downloads_dir,
+                            backend: config.backend,
+
+                            #[cfg(feature = "pgp")]
+                            pgp: config.pgp,
+
+                            folder: config.folder,
+                            envelope: config.envelope,
+                            message: config.message,
+                            template: config.template,
+
+                            #[cfg(feature = "imap")]
+                            imap: config.imap,
+                            #[cfg(feature = "maildir")]
+                            maildir: config.maildir,
+                            #[cfg(feature = "notmuch")]
+                            notmuch: config.notmuch,
+                            #[cfg(feature = "smtp")]
+                            smtp: config.smtp,
+                            #[cfg(feature = "sendmail")]
+                            sendmail: config.sendmail,
+                        },
+                    )
+                })
+                .collect(),
+            account: config.account,
+            repl: None,
+        })
     }
 }
