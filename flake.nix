@@ -36,7 +36,7 @@
 
           aarch64-linux = rec {
             rustTarget = "aarch64-unknown-linux-musl";
-            runner = { pkgs, himalaya }: "${pkgs.qemu}/bin/qemu-aarch64 ${himalaya}";
+            runner = { pkgs, himalaya-repl }: "${pkgs.qemu}/bin/qemu-aarch64 ${himalaya-repl}";
             mkPackage = { system, pkgs }: package:
               let
                 inherit (mkPkgsCross system rustTarget) stdenv;
@@ -50,9 +50,9 @@
 
           x86_64-windows = {
             rustTarget = "x86_64-pc-windows-gnu";
-            runner = { pkgs, himalaya }:
+            runner = { pkgs, himalaya-repl }:
               let wine = pkgs.wine.override { wineBuild = "wine64"; };
-              in "${wine}/bin/wine64 ${himalaya}.exe";
+              in "${wine}/bin/wine64 ${himalaya-repl}.exe";
             mkPackage = { system, pkgs }: package:
               let
                 inherit (pkgs.pkgsCross.mingwW64) stdenv windows;
@@ -87,7 +87,7 @@
           # FIXME: https://github.com/NixOS/nixpkgs/issues/273442
           aarch64-darwin = {
             rustTarget = "aarch64-apple-darwin";
-            runner = { pkgs, himalaya }: "${pkgs.qemu}/bin/qemu-aarch64 ${himalaya}";
+            runner = { pkgs, himalaya-repl }: "${pkgs.qemu}/bin/qemu-aarch64 ${himalaya-repl}";
             mkPackage = { system, pkgs }: package:
               let
                 inherit ((mkPkgsCross system "aarch64-darwin").pkgsStatic) stdenv darwin;
@@ -128,9 +128,9 @@
 
       mkApp = { pkgs, buildSystem, targetSystem ? buildSystem }:
         let
-          himalaya = lib.getExe self.packages.${buildSystem}.${targetSystem};
-          wrapper = crossSystems.${buildSystem}.${targetSystem}.runner or (_: himalaya) { inherit pkgs himalaya; };
-          program = lib.getExe (pkgs.writeShellScriptBin "himalaya" "${wrapper} $@");
+          himalaya-repl = lib.getExe self.packages.${buildSystem}.${targetSystem};
+          wrapper = crossSystems.${buildSystem}.${targetSystem}.runner or (_: himalaya-repl) { inherit pkgs himalaya-repl; };
+          program = lib.getExe (pkgs.writeShellScriptBin "himalaya-repl" "${wrapper} $@");
           app = { inherit program; type = "app"; };
         in
         app;
@@ -156,10 +156,10 @@
             rustc = toolchain;
           };
           mkPackage' = targetConfig.mkPackage or (_: p: p);
-          himalaya = "./himalaya";
-          runner = targetConfig.runner or (_: himalaya) { inherit pkgs himalaya; };
+          himalaya-repl = "./himalaya-repl";
+          runner = targetConfig.runner or (_: himalaya-repl) { inherit pkgs himalaya-repl; };
           package = mkPackage' { inherit pkgs; system = buildSystem; } {
-            name = "himalaya";
+            name = "himalaya-repl";
             src = gitignoreSource ./.;
             strictDeps = true;
             doCheck = false;
@@ -170,22 +170,11 @@
             postInstall = ''
               export WINEPREFIX="$(mktemp -d)"
 
-              mkdir -p $out/bin/share/{applications,completions,man,services}
-              cp assets/himalaya.desktop $out/bin/share/applications/
-              cp assets/himalaya-watch@.service $out/bin/share/services/
-
               cd $out/bin
-              ${runner} man ./share/man
-              ${runner} completion bash > ./share/completions/himalaya.bash
-              ${runner} completion elvish > ./share/completions/himalaya.elvish
-              ${runner} completion fish > ./share/completions/himalaya.fish
-              ${runner} completion powershell > ./share/completions/himalaya.powershell
-              ${runner} completion zsh > ./share/completions/himalaya.zsh
-              tar -czf himalaya.tgz himalaya* share
-              ${pkgs.zip}/bin/zip -r himalaya.zip himalaya* share
+              tar -czf himalaya-repl.tgz himalaya-repl*
+              ${pkgs.zip}/bin/zip -r himalaya-repl.zip himalaya-repl*
 
-              mv share ../
-              mv himalaya.tgz himalaya.zip ../
+              mv himalaya-repl.tgz himalaya-repl.zip ../
             '';
           };
         in

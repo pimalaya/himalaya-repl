@@ -482,7 +482,7 @@ Special thanks to the [NLnet foundation](https://nlnet.nl/) and the [European Co
 
 - [NGI Assure](https://nlnet.nl/project/Himalaya/) in 2022
 - [NGI Zero Entrust](https://nlnet.nl/project/Pimalaya/) in 2023
-- [NGI Zero Core](https://nlnet.nl/project/Pimalaya-PIM/) in 2024 *(ongoing)*
+- [NGI Zero Core](https://nlnet.nl/project/Pimalaya-PIM/) in 2024 *(still ongoing)*
 
 If you appreciate the project, feel free to donate using one of the following providers:
 
